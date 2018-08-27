@@ -8,6 +8,10 @@ const state = {
   tree: {}
 };
 
+function getUrl (url) {
+  return chrome.runtime.getURL(url);
+}
+
 function hashCode (str) {
   var hash = 0, i, chr;
   if (str.length === 0) return hash;
@@ -149,12 +153,12 @@ function buildTreeNode (dataNode, domNode) {
         const div = create('div', ['row']);
         cssClass = state.data.reviewed[file.filename] ? 'reviewed' : 'un-reviewed';
         const filename = file.filename.split('/').pop();
-        div.innerHTML = `<img class="file" src="${chrome.extension.getURL(`file-${file.lozenge}.png`)}" /> <a id="tree-file-${file.filename}" data-id="${file.filename}" class="${cssClass}" title="[${changeType}] ${file.filename}" href="${file.href}">${filename}</a>`;
+        div.innerHTML = `<img class="file" src="${getURL(`file-${file.lozenge}.png`)}" /> <a id="tree-file-${file.filename}" data-id="${file.filename}" class="${cssClass}" title="[${changeType}] ${file.filename}" href="${file.href}">${filename}</a>`;
         li.appendChild(div);
       });
     }
     if (key !== '$') {
-      li.innerHTML = `<div class="row"><img class="folder" src="${chrome.extension.getURL('folder.png')}" /> ${key}</div>`;
+      li.innerHTML = `<div class="row"><img class="folder" src="${getURL('folder.png')}" /> ${key}</div>`;
       buildTreeNode(dataNode[key], li);
     }
   }
@@ -387,5 +391,10 @@ window.addEventListener('keydown', e => {
   }
 });
 
-// wait for content
-detectChangeSetContent();
+try {
+  console.log('url = ' + getURL('folder.png'));
+  // wait for content
+  detectChangeSetContent();
+} catch (e) {
+
+}
