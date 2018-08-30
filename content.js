@@ -5,11 +5,17 @@ const state = {
   data: {
     reviewed: {}
   },
-  tree: {}
+  tree: {},
+  treeItems: [],
+  actions: {},
+  options: {
+    hideComments: false,
+    hideDeletions: false,
+  },
 };
 
-function getUrl (url) {
-  return chrome.runtime.getURL(url);
+function getURL (url) {
+  return `https://raw.githubusercontent.com/dragonworx/gooder-bitbucket-prs/master/${url}`;
 }
 
 function hashCode (str) {
@@ -111,6 +117,58 @@ function initFileTree (container) {
   const root = create('ul', ['tree'], { id: 'tree'});
   buildTreeNode(state.tree, root);
   ul.parentElement.replaceChild(root, ul);
+
+  initActions(root);
+}
+
+function initActions (root) {
+  // add global options
+  const html = `
+    <label><input type="checkbox" data-action="hide-comments" /> Hide Comments</label>
+    <label><input type="checkbox" data-action="hide-deletions" /> Hide Deletions</label>
+  `;
+  const div = create('div', ['options']);
+  div.innerHTML = html;
+  root.appendChild(div);
+
+  const hideComments = div.querySelector('*[data-action="hide-comments"]');
+  const hideDeletions = div.querySelector('*[data-action="hide-deletions"]');
+  state.actions = {
+    hideComments,
+    hideDeletions,
+  };
+
+  hideComments.addEventListener('change', () => {
+    state.options.hideComments = !state.options.hideComments;
+    applyOptions();
+  });
+
+  hideDeletions.addEventListener('change', () => {
+    state.options.hideDeletions = !state.options.hideDeletions;
+    applyOptions();
+  });
+}
+
+function applyOptions () {
+  // hide comments
+  const hideComments = state.options.hideComments;
+  const hideDeletions = state.options.hideDeletions;
+
+  document.querySelectorAll('.comment-thread-container').forEach(el => el.style.display = hideComments ? 'none' : '');
+  document.querySelectorAll('.udiff-line.deletion').forEach(el => el.style.display = hideDeletions ? 'none' : '');
+
+  state.files.forEach(file => {
+    if (file.type === 'deleted') {
+      file.diffContainer.style.display = hideDeletions ? 'none' : '';
+    }
+  });
+
+  state.treeItems.forEach(div => {
+    const file = div.file;
+    if (file.lozenge === 'D') {
+      div.style.display = hideDeletions ? 'none' : '';
+    }
+  });
 }
 
 function registerTreeItem (file) {
@@ -155,6 +213,8 @@ function buildTreeNode (dataNode, domNode) {
         const filename = file.filename.split('/').pop();
         div.innerHTML = `<img class="file" src="${getURL(`file-${file.lozenge}.png`)}" /> <a id="tree-file-${file.filename}" data-id="${file.filename}" class="${cssClass}" title="[${changeType}] ${file.filename}" href="${file.href}">${filename}</a>`;
         li.appendChild(div);
+        state.treeItems.push(div);
+        div.file = file;
       });
     }
     if (key !== '$') {
@@ -176,7 +236,7 @@ function initFileDiffs (container) {
     const fileElement = diffElement.querySelector('.filename');
     const filename = fileElement.childNodes[2].textContent.trim();
     const changeType = fileElement.childNodes[3].textContent.trim().toLowerCase();
-    const contentElement = headingElement.nextElementSibling;
+    const contentElement = headingElement.parentElement.lastElementChild;
     const diffContainer = diffElement.parentElement;
     const file = {
       type: changeType,
@@ -224,12 +284,12 @@ function initFileDiffs (container) {
       const process = () => {
         const html = pre.innerHTML;
         if (html.match(regex)) {
-          pre.innerHTML = pre.innerHTML.replace(regex, '');
-          setTimeout(() => clearInterval(id), 1000);
+          pre.innerHTML = pre.innerHTML.replace(regex, '&nbsp;');
+          setTimeout(() => clearInterval(id), 15000);
         }
       };
 
-      id = setInterval(process, 30);
+      id = setInterval(process, 100);
     });
 
     // toggle collapse on click
@@ -260,7 +320,7 @@ function initFileDiffs (container) {
       }
       const isCollapsed = !file.isCollapsed;
       const files = [];
-      if (e.shiftKey) {
+      if (e.shiftKey || e.altKey) {
         files.push.apply(files, state.files);
       } else {
         files.push(file);
@@ -276,12 +336,17 @@ function initFileDiffs (container) {
     });
 
     // hide deleted by default
-    headingElement.style.background = 'linear-gradient(0deg, #ceffd7 0, #ffffff 100%)';
+    let bgColor = 'linear-gradient(0deg, #ceffd7 0, #ffffff 100%)';
+    
     if (changeType === 'deleted') {
       diffContainer.classList.add('collapsed');
       file.isCollapsed = true;
-      headingElement.style.background = 'linear-gradient(0deg, rgb(255, 223, 224) 0px, rgb(255, 255, 255) 100%)';
+      bgColor = 'linear-gradient(0deg, rgb(255, 223, 224) 0px, rgb(255, 255, 255) 100%)';
+    } else if (changeType === 'added') {
+      // bgColor = 'linear-gradient(0deg, rgb(206, 246, 255) 0px, rgb(255, 255, 255) 100%)';
     }
+
+    headingElement.style.background = bgColor;
    });
 }
 
@@ -333,6 +398,13 @@ function getFile (filename) {
 }
 
 function goToNextUnreviewd () {
+  // turn off the options
+  state.options.hideComments = false;
+  state.options.hideDeletions = false;
+  state.actions.hideComments.checked = false;
+  state.actions.hideDeletions.checked = false;
+  applyOptions();
+  
   const items = document.querySelectorAll('#tree a');
   for (let i = 0; i < items.length; i++) {
     const a = items[i];
@@ -368,12 +440,16 @@ const keys = {
   RIGHT: 39,
   PAGE_UP: 33,
   PAGE_DOWN: 34,
+  BACK_SLASH: 220,
+  FORWARD_SLASH: 191,
 };
 
 // trap global keys
 window.addEventListener('keydown', e => {
   const key = e.keyCode;
+  // console.log(key);
   switch (key) {
+    case keys.FORWARD_SLASH:
     case keys.HOME:
       if (!e.metaKey) {
         return;
@@ -392,9 +468,8 @@ window.addEventListener('keydown', e => {
 });
 
 try {
-  console.log('url = ' + getURL('folder.png'));
   // wait for content
   detectChangeSetContent();
 } catch (e) {
-
+  console.log("Error loading: " + e.stack);
 }

@@ -2,7 +2,7 @@
   "manifest_version": 2,
  
   "name": "Gooder Bitbucket PRs",
-  "version": "1.0.1",
+  "version": "1.1.2",
   "description": "Bring some goodness to Bitbucket Cloud PRs!",
  
   "content_scripts": [{
@@ -11,7 +11,7 @@
     "matches": ["https://bitbucket.org/*"]
   }],
 
-  "web_accessible_resources": ["file-A.png", "file-D.png", "file-M.png", "file-R.png", "folder.png"],
+  "web_accessible_resources": ["file-A.png", "file-D.png", "file-M.png", "file-R.png", "file-C.png", "folder.png"],
 
   "icons": { "16": "icon16.png",
     "48": "icon48.png",

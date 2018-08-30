@@ -116,3 +116,11 @@
   content: '✅';
   margin-left: 10px;
 }
+
+.tree .options {
+  margin: 15px 0;
+  border: 1px solid #dedede;
+  background-color: #f5fff7;
+  border-radius: 5px;
+  padding: 3px;
+}
