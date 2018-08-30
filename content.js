@@ -276,16 +276,42 @@ function initFileDiffs (container) {
       }
     });
 
-    const regex = /^[+\-]/g;
+    const insDelRegex = /^[+\-]/g;
+    const conflictDestRegex = /^&nbsp;&lt;&lt;&lt;&lt;&lt;&lt;&lt;/g;
+    const conflictSourceRegex = /^&nbsp;&gt;&gt;&gt;&gt;&gt;&gt;&gt;/g;
+    const conflictSepRegex = /^&nbsp;=======/g;
+    const shaRegex = /(destination|source):([a-f0-9]+):(.*)/i;
 
     contentElement.querySelectorAll('pre').forEach(pre => {
       let id;
 
       const process = () => {
-        const html = pre.innerHTML;
-        if (html.match(regex)) {
-          pre.innerHTML = pre.innerHTML.replace(regex, '&nbsp;');
-          setTimeout(() => clearInterval(id), 15000);
+        const html = pre.innerHTML.trim();
+        if (html.match(insDelRegex)) {
+          pre.innerHTML = pre.innerHTML.replace(insDelRegex, '&nbsp;');
+          setTimeout(() => clearInterval(id), 10000);
+        } else if (html.match(conflictDestRegex)) {
+          let subHTML = html.replace(conflictDestRegex, '');
+          const match = subHTML.match(shaRegex);
+          if (match) {
+            subHTML = ` ${match[1]}: ${match[2].substr(0, 6)}: <b>${match[3]}</b>`;
+          }
+          pre.innerHTML = subHTML;
+          pre.style.color = '#ff8600';
+          setTimeout(() => clearInterval(id), 10000);
+        } else if (html.match(conflictSourceRegex)) {
+          let subHTML = html.replace(conflictSourceRegex, '');
+          const match = subHTML.match(shaRegex);
+          if (match) {
+            subHTML = ` ${match[1]}: ${match[2].substr(0, 6)}: <b>${match[3]}</b>`;
+          }
+          pre.innerHTML = subHTML;
+          pre.style.color = '#ff8600';
+          setTimeout(() => clearInterval(id), 10000);
+        } else if (html.match(conflictSepRegex)) {
+          pre.innerHTML = pre.innerHTML.replace(conflictSepRegex, '');
+          pre.style.height = '3px';
+          setTimeout(() => clearInterval(id), 10000);
         }
       };
 
