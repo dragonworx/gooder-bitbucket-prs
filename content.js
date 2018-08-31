@@ -14,6 +14,8 @@ const state = {
   },
 };
 
+const autoCollapsePattern = /\.lock|-lock/;
+
 function getURL (url) {
   return `https://raw.githubusercontent.com/dragonworx/gooder-bitbucket-prs/master/${url}`;
 }
@@ -257,8 +259,8 @@ function initFileDiffs (container) {
     // highlight filename
     const filepath = filename.split('/');
     const filepathName = filepath.pop();
-    const filepathPrefix = filepath.slice(0, -1).join('/');
-    const html = fileElement.innerHTML.replace(filename, `<input type="checkbox" ${state.data.reviewed[filename] ? 'checked' : ''}/> ${filepathPrefix}/<b>${filepathName}</b>`);
+    const filepathPrefix = filepath.join('/');
+    const html = fileElement.innerHTML.replace(filename, `<input type="checkbox" ${state.data.reviewed[filename] ? 'checked' : ''}/> ${filepathPrefix}${filepath.length ? '/' : ''}<b>${filepathName}</b>`);
     fileElement.innerHTML = html;
 
     // track actions
@@ -373,6 +375,13 @@ function initFileDiffs (container) {
     }
 
     headingElement.style.background = bgColor;
+
+    // collapse if reviewed, or if known large file type
+    const shouldAutoLock = !!filename.match(autoCollapsePattern);
+    if (state.data.reviewed[filename] || shouldAutoLock) {
+      file.isCollapsed = true;
+      diffContainer.classList.add('collapsed');
+    }
    });
 }
 
