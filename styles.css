@@ -108,8 +108,8 @@
   background-color: transparent !important;
 }
 
-.tree .reviewed {
-  color: #a5b6d0;
+.tree .reviewed a {
+  color: #a5b6d0 !important;
 }
 
 .tree .reviewed:after  {

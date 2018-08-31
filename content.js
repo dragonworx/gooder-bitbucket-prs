@@ -20,6 +20,14 @@ function getURL (url) {
   return `https://raw.githubusercontent.com/dragonworx/gooder-bitbucket-prs/master/${url}`;
 }
 
+function getFile (filename) {
+  for (let i = 0; i < state.files.length; i++) {
+    if (state.files[i].filename === filename) {
+      return state.files[i];
+    }
+  }
+}
+
 function hashCode (str) {
   var hash = 0, i, chr;
   if (str.length === 0) return hash;
@@ -31,7 +39,20 @@ function hashCode (str) {
   return hash;
 }
 
-const storageKey = 'bitbucket-pr-goodness-ext:' + hashCode(location.pathname);
+function updateTreeItems () {
+  state.treeItems.forEach(div => {
+    const isChecked = state.data.reviewed[div.file.filename];
+    div.classList.remove('reviewed');
+    div.classList.remove('un-reviewed');
+    if (isChecked) {
+      div.classList.add('reviewed');
+    } else {
+      div.classList.add('un-reviewed');
+    }
+  });
+}
+
+const storageKey = 'gooder-bitbucket-prs:' + hashCode(location.pathname);
 
 function load () {
   try {
@@ -121,6 +142,7 @@ function initFileTree (container) {
   ul.parentElement.replaceChild(root, ul);
 
   initActions(root);
+  updateTreeItems();
 }
 
 function initActions (root) {
@@ -211,9 +233,8 @@ function buildTreeNode (dataNode, domNode) {
         // file
         const changeType = changeTypes[file.lozenge];
         const div = create('div', ['row']);
-        cssClass = state.data.reviewed[file.filename] ? 'reviewed' : 'un-reviewed';
         const filename = file.filename.split('/').pop();
-        div.innerHTML = `<img class="file" src="${getURL(`file-${file.lozenge}.png`)}" /> <a id="tree-file-${file.filename}" data-id="${file.filename}" class="${cssClass}" title="[${changeType}] ${file.filename}" href="${file.href}">${filename}</a>`;
+        div.innerHTML = `<img class="file" src="${getURL(`file-${file.lozenge}.png`)}" /> <a id="tree-file-${file.filename}" data-id="${file.filename}" title="[${changeType}] ${file.filename}" href="${file.href}">${filename}</a>`;
         li.appendChild(div);
         state.treeItems.push(div);
         div.file = file;
@@ -287,11 +308,11 @@ function initFileDiffs (container) {
     contentElement.querySelectorAll('pre').forEach(pre => {
       let id;
 
-      const process = () => {
+      const removeInsDelChars = (cancel = () => {}) => {
         const html = pre.innerHTML.trim();
         if (html.match(insDelRegex)) {
           pre.innerHTML = pre.innerHTML.replace(insDelRegex, '&nbsp;');
-          setTimeout(() => clearInterval(id), 10000);
+          cancel();
         } else if (html.match(conflictDestRegex)) {
           let subHTML = html.replace(conflictDestRegex, '');
           const match = subHTML.match(shaRegex);
@@ -300,7 +321,7 @@ function initFileDiffs (container) {
           }
           pre.innerHTML = subHTML;
           pre.style.color = '#ff8600';
-          setTimeout(() => clearInterval(id), 10000);
+          cancel();
         } else if (html.match(conflictSourceRegex)) {
           let subHTML = html.replace(conflictSourceRegex, '');
           const match = subHTML.match(shaRegex);
@@ -309,15 +330,42 @@ function initFileDiffs (container) {
           }
           pre.innerHTML = subHTML;
           pre.style.color = '#ff8600';
-          setTimeout(() => clearInterval(id), 10000);
+          cancel();
         } else if (html.match(conflictSepRegex)) {
           pre.innerHTML = pre.innerHTML.replace(conflictSepRegex, '');
           pre.style.height = '3px';
-          setTimeout(() => clearInterval(id), 10000);
+          cancel();
         }
       };
 
-      id = setInterval(process, 100);
+      const processViaMutationObserver = () => {
+        removeInsDelChars();
+        const observer = new MutationObserver(mutationsList => {
+          mutationsList.forEach(mutation => {
+            if (mutation.type === 'childList') {
+              removeInsDelChars();
+            }
+          })
+        });
+
+        observer.observe(pre, {
+          childList: true,
+        });
+
+        setTimeout(() => {
+          observer.disconnect();
+        }, 15000);
+      };
+
+      if (typeof MutationObserver !== 'undefined') {
+        // use mutation observer
+        processViaMutationObserver();
+      } else {
+        // poll
+        id = setInterval(() => removeInsDelChars(() => {
+          setTimeout(() => clearInterval(id), 10000);
+        }), 100);
+      }
     });
 
     // toggle collapse on click
@@ -335,15 +383,20 @@ function initFileDiffs (container) {
           file.isCollapsed = true;
           scrollToTree();
         }
-        // update tree item
-        const el = document.getElementById(`tree-file-${filename}`);
-        el.classList.remove('reviewed');
-        el.classList.remove('un-reviewed');
-        if (isChecked) {
-          el.classList.add('reviewed');
-        } else {
-          el.classList.add('un-reviewed');
+        // update tree item - if option pressed updated all items with current item state
+        if (e.altKey) {
+          state.treeItems.forEach(div => {
+            state.data.reviewed[div.file.filename] = isChecked;
+            const file = getFile(div.file.filename);
+            file.fileElement.querySelector('input[type="checkbox"]').checked = isChecked;
+            if (isChecked && !file.isCollapsed) {
+              file.diffContainer.classList.add('collapsed');
+              file.isCollapsed = true;
+            }
+          });
         }
+        updateTreeItems();
+        document.getElementById('tree').scrollIntoView();
         return;
       }
       const isCollapsed = !file.isCollapsed;
